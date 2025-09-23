@@ -248,6 +248,90 @@
             opacity: 0.8;
         }
 
+        /* Styles pour la section d'upload */
+        .upload-section {
+            margin: 30px 0;
+            padding: 25px;
+            background: linear-gradient(135deg, #f8f9ff 0%, #fff5f8 100%);
+            border-radius: 15px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .upload-area {
+            border: 3px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .upload-area:hover {
+            border-color: #f5576c;
+            background: #fefefe;
+        }
+
+        .upload-area.dragover {
+            border-color: #f5576c;
+            background: #fff5f5;
+            transform: scale(1.02);
+        }
+
+        .upload-content {
+            pointer-events: none;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        .upload-hint {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+
+        .upload-preview {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            margin-top: 20px;
+        }
+
+        .upload-preview img {
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 2px solid #f0f0f0;
+        }
+
+        .preview-info {
+            flex: 1;
+        }
+
+        .preview-info h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+
+        .loading-upload {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #f5576c;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
         .image-card {
             background: white;
             border-radius: 15px;
@@ -352,6 +436,29 @@
                 </div>
             </div>
 
+            <div class="upload-section">
+                <h3>📸 Upload de Produit</h3>
+                <p>Uploadez une photo de votre produit et générez automatiquement 6 mises en scène différentes !</p>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <div class="upload-icon">📷</div>
+                        <p>Glissez-déposez votre image ici ou cliquez pour sélectionner</p>
+                        <p class="upload-hint">Formats acceptés: JPG, PNG, WEBP (max 10MB)</p>
+                    </div>
+                    <input type="file" id="productImage" accept="image/*" style="display: none;">
+                </div>
+                <div class="upload-preview" id="uploadPreview" style="display: none;">
+                    <img id="previewImage" alt="Aperçu du produit">
+                    <div class="preview-info">
+                        <h4>Produit sélectionné</h4>
+                        <button id="removeImage" class="btn btn-secondary">Supprimer</button>
+                    </div>
+                </div>
+                <div class="button-group" style="margin-top: 15px;">
+                    <button id="generateScenes" class="btn" style="display: none;">🎬 Générer 6 Mises en Scène</button>
+                </div>
+            </div>
+
             <div class="multiple-prompts">
                 <h3>📝 Prompts Multiples</h3>
                 <p style="color: #666; font-size: 0.9rem; margin-bottom: 15px;">
@@ -413,6 +520,14 @@
         const modalImageTitle = document.getElementById('modalImageTitle');
         const modalImageDescription = document.getElementById('modalImageDescription');
         const closeBtn = document.getElementsByClassName('close')[0];
+
+        // Éléments d'upload
+        const uploadArea = document.getElementById('uploadArea');
+        const productImage = document.getElementById('productImage');
+        const uploadPreview = document.getElementById('uploadPreview');
+        const previewImage = document.getElementById('previewImage');
+        const removeImageBtn = document.getElementById('removeImage');
+        const generateScenesBtn = document.getElementById('generateScenes');
 
         // Fonctions utilitaires
         function showStatus(message, type = 'loading') {
@@ -663,6 +778,31 @@
         generateMultipleBtn.addEventListener('click', generateMultiple);
         showPromptsBtn.addEventListener('click', togglePrompts);
 
+        // Événements pour l'upload
+        uploadArea.addEventListener('click', () => productImage.click());
+        productImage.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+        removeImageBtn.addEventListener('click', removeUploadedImage);
+        generateScenesBtn.addEventListener('click', generateProductScenes);
+
+        // Drag & Drop pour l'upload
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
         // Événements pour le modal
         closeBtn.addEventListener('click', closeModal);
         
@@ -679,6 +819,81 @@
                 closeModal();
             }
         });
+
+        // Variables pour l'upload
+        let uploadedImageFile = null;
+        let uploadedImageBase64 = null;
+
+        // Fonctions pour l'upload d'image
+        function handleFileSelect(file) {
+            if (!file || !file.type.startsWith('image/')) {
+                showStatus('Veuillez sélectionner une image valide', 'error');
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) { // 10MB
+                showStatus('L\'image est trop volumineuse (max 10MB)', 'error');
+                return;
+            }
+
+            uploadedImageFile = file;
+            
+            // Convertir en base64 pour l'aperçu
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                uploadedImageBase64 = e.target.result;
+                previewImage.src = uploadedImageBase64;
+                uploadArea.style.display = 'none';
+                uploadPreview.style.display = 'flex';
+                generateScenesBtn.style.display = 'inline-block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeUploadedImage() {
+            uploadedImageFile = null;
+            uploadedImageBase64 = null;
+            uploadArea.style.display = 'block';
+            uploadPreview.style.display = 'none';
+            generateScenesBtn.style.display = 'none';
+            productImage.value = '';
+        }
+
+        async function generateProductScenes() {
+            if (!uploadedImageBase64) {
+                showStatus('Veuillez d\'abord uploader une image', 'error');
+                return;
+            }
+
+            showStatus('🎬 Génération de 6 mises en scène en cours...', 'loading');
+            generateScenesBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/generate-product-scenes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: uploadedImageBase64
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus(`✅ ${data.results.length} mises en scène générées !`, 'success');
+                    displayResults(data.results);
+                } else {
+                    showStatus(`❌ Erreur: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('Erreur lors de la génération:', error);
+                showStatus('❌ Erreur lors de la génération des mises en scène', 'error');
+            } finally {
+                generateScenesBtn.disabled = false;
+            }
+        }
 
         // Fonctions pour gérer le modal
         function openModal(result) {

@@ -295,6 +295,138 @@ app.post('/api/generate-multiple', async (req, res) => {
   }
 });
 
+// Fonction pour générer des prompts de mise en scène automatiquement
+function generateProductScenePrompts() {
+  return [
+    "Product lifestyle shot - Premium product in elegant home setting, natural lighting, minimalist interior design, luxury atmosphere, professional photography, clean background, focus on product details",
+    "Product hero shot - Dramatic product photography, studio lighting, clean white background, professional commercial style, product centered, high-end presentation, commercial grade",
+    "Product in context - Product being used in real-life situation, lifestyle photography, authentic moment, natural environment, storytelling approach, relatable scene",
+    "Product detail close-up - Macro photography style, extreme close-up of product details, texture and material focus, professional studio setup, commercial photography quality",
+    "Product seasonal theme - Product styled with seasonal elements, festive atmosphere, creative composition, lifestyle photography, seasonal color palette, engaging visual story",
+    "Product premium presentation - Luxury product showcase, high-end environment, premium materials, sophisticated lighting, editorial photography style, aspirational lifestyle"
+  ];
+}
+
+// Route pour la génération de mises en scène de produit
+app.post('/api/generate-product-scenes', async (req, res) => {
+  try {
+    const { image } = req.body;
+    
+    if (!image) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aucune image fournie'
+      });
+    }
+    
+    console.log('📸 Génération de mises en scène de produit...');
+    const scenePrompts = generateProductScenePrompts();
+    console.log(`🎬 ${scenePrompts.length} mises en scène à générer`);
+    
+    const results = [];
+    
+    for (let i = 0; i < scenePrompts.length; i++) {
+      console.log(`Génération ${i + 1}/${scenePrompts.length}: ${scenePrompts[i].substring(0, 30)}...`);
+      const result = await generateProductScene(image, scenePrompts[i], i);
+      results.push(result);
+    }
+    
+    res.json({
+      success: true,
+      message: `Génération terminée. ${results.length} mises en scène générées.`,
+      results: results
+    });
+    
+  } catch (error) {
+    console.error('Erreur lors de la génération des mises en scène:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la génération des mises en scène',
+      error: error.message
+    });
+  }
+});
+
+// Fonction pour générer une mise en scène de produit avec image-to-image
+async function generateProductScene(baseImage, prompt, index) {
+  try {
+    console.log(`Génération de la mise en scène ${index + 1}: ${prompt.substring(0, 50)}...`);
+    
+    if (!isApiValid) {
+      // Mode démonstration
+      console.log('🎭 Mode démonstration - utilisation d\'images de test');
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const imageUrl = config.demoImages[index] || `https://picsum.photos/1920/1080?random=${index + 20}&blur=1`;
+      
+      return {
+        success: true,
+        imageUrl: imageUrl,
+        prompt: prompt,
+        index: index,
+        demoMode: true,
+        title: `Mise en scène ${index + 1}`,
+        description: prompt,
+        message: 'Mise en scène de démonstration générée'
+      };
+    } else {
+      // Mode production avec l'API Seedream (image-to-image)
+      console.log('🚀 Mode production - génération avec Seedream API (image-to-image)');
+      
+      const response = await axios.post(
+        `${config.seedream.baseUrl}/images/generations`,
+        {
+          model: config.seedream.model,
+          prompt: prompt,
+          image: baseImage, // Image de base en base64
+          sequential_image_generation: "disabled",
+          response_format: "url",
+          size: "2K",
+          watermark: false
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.seedream.apiKey}`
+          }
+        }
+      );
+
+      console.log('✅ Mise en scène générée avec succès via Seedream');
+      
+      const imageUrl = response.data.data[0]?.url || 
+                      `https://via.placeholder.com/1920x1080/00FF00/FFFFFF?text=Scene+${index + 1}`;
+      
+      return {
+        success: true,
+        imageUrl: imageUrl,
+        prompt: prompt,
+        index: index,
+        demoMode: false,
+        title: `Mise en scène ${index + 1}`,
+        description: prompt,
+        message: 'Mise en scène générée avec Seedream API'
+      };
+    }
+  } catch (error) {
+    console.error('❌ Erreur lors de la génération de la mise en scène:', error.message);
+    
+    const fallbackImage = config.demoImages[index] || `https://via.placeholder.com/1920x1080/FF6B6B/FFFFFF?text=Erreur+${index + 1}`;
+    
+    return {
+      success: false,
+      imageUrl: fallbackImage,
+      prompt: prompt,
+      index: index,
+      demoMode: true,
+      title: `Mise en scène ${index + 1}`,
+      description: prompt,
+      error: error.message,
+      message: 'Erreur lors de la génération - Image de démonstration'
+    };
+  }
+}
+
 // Route pour servir la page principale
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
