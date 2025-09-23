@@ -332,6 +332,171 @@
             margin-right: 10px;
         }
 
+        /* Styles améliorés pour l'upload */
+        .upload-area::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transition: left 0.5s;
+        }
+
+        .upload-area:hover::before {
+            left: 100%;
+        }
+
+        .upload-icon {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .upload-preview {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+        }
+
+        .upload-preview:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+
+        .upload-preview img {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .image-details {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .image-detail {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .image-detail-icon {
+            width: 16px;
+            height: 16px;
+            opacity: 0.7;
+        }
+
+        /* Barre de progression */
+        .progress-container {
+            margin: 20px 0;
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            height: 8px;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #f5576c, #f093fb);
+            width: 0%;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background-image: linear-gradient(
+                -45deg,
+                rgba(255, 255, 255, .2) 25%,
+                transparent 25%,
+                transparent 50%,
+                rgba(255, 255, 255, .2) 50%,
+                rgba(255, 255, 255, .2) 75%,
+                transparent 75%,
+                transparent
+            );
+            background-size: 50px 50px;
+            animation: move 2s linear infinite;
+        }
+
+        @keyframes move {
+            0% { background-position: 0 0; }
+            100% { background-position: 50px 50px; }
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        /* Options avancées */
+        .advanced-options {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(255,255,255,0.7);
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            display: none;
+        }
+
+        .advanced-options.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .option-group {
+            margin-bottom: 15px;
+        }
+
+        .option-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .option-group select,
+        .option-group input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .toggle-options {
+            background: none;
+            border: none;
+            color: #f5576c;
+            cursor: pointer;
+            font-size: 0.9rem;
+            text-decoration: underline;
+            margin-top: 10px;
+        }
+
+        .toggle-options:hover {
+            color: #d63384;
+        }
+
         .image-card {
             background: white;
             border-radius: 15px;
@@ -439,23 +604,78 @@
             <div class="upload-section">
                 <h3>📸 Upload de Produit</h3>
                 <p>Uploadez une photo de votre produit et générez automatiquement 6 mises en scène différentes !</p>
+                
                 <div class="upload-area" id="uploadArea">
                     <div class="upload-content">
                         <div class="upload-icon">📷</div>
-                        <p>Glissez-déposez votre image ici ou cliquez pour sélectionner</p>
-                        <p class="upload-hint">Formats acceptés: JPG, PNG, WEBP (max 10MB)</p>
+                        <p><strong>Glissez-déposez votre image ici</strong></p>
+                        <p>ou cliquez pour sélectionner un fichier</p>
+                        <p class="upload-hint">Formats acceptés: JPG, PNG, WEBP, GIF (max 10MB)</p>
                     </div>
                     <input type="file" id="productImage" accept="image/*" style="display: none;">
                 </div>
+                
                 <div class="upload-preview" id="uploadPreview" style="display: none;">
                     <img id="previewImage" alt="Aperçu du produit">
                     <div class="preview-info">
-                        <h4>Produit sélectionné</h4>
+                        <h4 id="imageFileName">Produit sélectionné</h4>
+                        <div class="image-details" id="imageDetails">
+                            <div class="image-detail">
+                                <span class="image-detail-icon">📏</span>
+                                <span id="imageDimensions">-</span>
+                            </div>
+                            <div class="image-detail">
+                                <span class="image-detail-icon">💾</span>
+                                <span id="imageSize">-</span>
+                            </div>
+                            <div class="image-detail">
+                                <span class="image-detail-icon">📅</span>
+                                <span id="imageDate">-</span>
+                            </div>
+                        </div>
                         <button id="removeImage" class="btn btn-secondary">Supprimer</button>
                     </div>
                 </div>
+
+                <!-- Barre de progression -->
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <div class="progress-text" id="progressText"></div>
+
+                <!-- Options avancées -->
+                <button class="toggle-options" id="toggleOptions">⚙️ Options avancées</button>
+                <div class="advanced-options" id="advancedOptions">
+                    <div class="option-group">
+                        <label for="sceneStyle">Style des mises en scène :</label>
+                        <select id="sceneStyle">
+                            <option value="professional">Professionnel</option>
+                            <option value="lifestyle">Lifestyle</option>
+                            <option value="creative">Créatif</option>
+                            <option value="minimalist">Minimaliste</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <label for="imageQuality">Qualité de sortie :</label>
+                        <select id="imageQuality">
+                            <option value="2K">2K (Recommandé)</option>
+                            <option value="4K">4K (Haute qualité)</option>
+                            <option value="1K">1K (Rapide)</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <label for="generationSpeed">Vitesse de génération :</label>
+                        <select id="generationSpeed">
+                            <option value="balanced">Équilibré</option>
+                            <option value="fast">Rapide</option>
+                            <option value="quality">Qualité maximale</option>
+                        </select>
+                    </div>
+                </div>
+                
                 <div class="button-group" style="margin-top: 15px;">
                     <button id="generateScenes" class="btn" style="display: none;">🎬 Générer 6 Mises en Scène</button>
+                    <button id="generateCustomBtn" class="btn btn-secondary" style="display: none;">✨ Générer Style Personnalisé</button>
                 </div>
             </div>
 
@@ -783,6 +1003,24 @@
         productImage.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
         removeImageBtn.addEventListener('click', removeUploadedImage);
         generateScenesBtn.addEventListener('click', generateProductScenes);
+        
+        // Événements pour les options avancées
+        const toggleOptionsBtn = document.getElementById('toggleOptions');
+        const advancedOptions = document.getElementById('advancedOptions');
+        const generateCustomBtn = document.getElementById('generateCustomBtn');
+        
+        toggleOptionsBtn.addEventListener('click', () => {
+            const isHidden = !advancedOptions.classList.contains('show');
+            if (isHidden) {
+                advancedOptions.classList.add('show');
+                toggleOptionsBtn.textContent = '⚙️ Masquer les options';
+            } else {
+                advancedOptions.classList.remove('show');
+                toggleOptionsBtn.textContent = '⚙️ Options avancées';
+            }
+        });
+        
+        generateCustomBtn.addEventListener('click', generateCustomStyle);
 
         // Drag & Drop pour l'upload
         uploadArea.addEventListener('dragover', (e) => {
@@ -824,19 +1062,50 @@
         let uploadedImageFile = null;
         let uploadedImageBase64 = null;
 
-        // Fonctions pour l'upload d'image
+        // Fonctions améliorées pour l'upload d'image
         function handleFileSelect(file) {
+            console.log('📁 Fichier sélectionné:', file);
+            
+            // Validation avancée
             if (!file || !file.type.startsWith('image/')) {
-                showStatus('Veuillez sélectionner une image valide', 'error');
+                showStatus('❌ Veuillez sélectionner une image valide (JPG, PNG, WEBP, GIF)', 'error');
                 return;
             }
 
             if (file.size > 10 * 1024 * 1024) { // 10MB
-                showStatus('L\'image est trop volumineuse (max 10MB)', 'error');
+                showStatus('❌ L\'image est trop volumineuse (maximum 10MB)', 'error');
                 return;
             }
 
+            // Validation des dimensions
+            const img = new Image();
+            img.onload = function() {
+                if (this.width < 100 || this.height < 100) {
+                    showStatus('❌ L\'image est trop petite (minimum 100x100 pixels)', 'error');
+                    return;
+                }
+                
+                if (this.width > 8000 || this.height > 8000) {
+                    showStatus('⚠️ Image très grande, la génération pourrait être lente', 'warning');
+                }
+                
+                // Continuer avec le traitement
+                processImageFile(file, this.width, this.height);
+            };
+            
+            img.onerror = function() {
+                showStatus('❌ Erreur lors de la lecture de l\'image', 'error');
+                return;
+            };
+            
+            img.src = URL.createObjectURL(file);
+        }
+
+        function processImageFile(file, width, height) {
             uploadedImageFile = file;
+            
+            // Mettre à jour les informations de l'image
+            updateImageInfo(file, width, height);
             
             // Convertir en base64 pour l'aperçu
             const reader = new FileReader();
@@ -846,8 +1115,28 @@
                 uploadArea.style.display = 'none';
                 uploadPreview.style.display = 'flex';
                 generateScenesBtn.style.display = 'inline-block';
+                generateCustomBtn.style.display = 'inline-block';
+                
+                showStatus('✅ Image chargée avec succès !', 'success');
             };
             reader.readAsDataURL(file);
+        }
+
+        function updateImageInfo(file, width, height) {
+            // Mettre à jour le nom du fichier
+            document.getElementById('imageFileName').textContent = file.name;
+            
+            // Mettre à jour les dimensions
+            document.getElementById('imageDimensions').textContent = `${width} × ${height} pixels`;
+            
+            // Mettre à jour la taille
+            const fileSizeKB = (file.size / 1024).toFixed(1);
+            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            document.getElementById('imageSize').textContent = fileSizeMB > 1 ? `${fileSizeMB} MB` : `${fileSizeKB} KB`;
+            
+            // Mettre à jour la date
+            const date = new Date(file.lastModified);
+            document.getElementById('imageDate').textContent = date.toLocaleDateString('fr-FR');
         }
 
         function removeUploadedImage() {
@@ -856,17 +1145,36 @@
             uploadArea.style.display = 'block';
             uploadPreview.style.display = 'none';
             generateScenesBtn.style.display = 'none';
+            generateCustomBtn.style.display = 'none';
             productImage.value = '';
+            
+            // Réinitialiser les informations d'image
+            document.getElementById('imageFileName').textContent = 'Produit sélectionné';
+            document.getElementById('imageDimensions').textContent = '-';
+            document.getElementById('imageSize').textContent = '-';
+            document.getElementById('imageDate').textContent = '-';
+            
+            showStatus('Image supprimée', 'success');
         }
 
-        async function generateProductScenes() {
+        // Fonction pour générer un style personnalisé
+        async function generateCustomStyle() {
             if (!uploadedImageBase64) {
-                showStatus('Veuillez d\'abord uploader une image', 'error');
+                showStatus('❌ Veuillez d\'abord uploader une image', 'error');
                 return;
             }
 
-            showStatus('🎬 Génération de 6 mises en scène en cours...', 'loading');
+            const customPrompt = prompt('Entrez votre prompt personnalisé pour la mise en scène :');
+            if (!customPrompt || customPrompt.trim() === '') {
+                showStatus('❌ Prompt personnalisé requis', 'error');
+                return;
+            }
+
+            showStatus('🎨 Génération du style personnalisé...', 'loading');
+            generateCustomBtn.disabled = true;
             generateScenesBtn.disabled = true;
+            
+            showProgressBar();
 
             try {
                 const response = await fetch('/api/generate-product-scenes', {
@@ -875,24 +1183,133 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        image: uploadedImageBase64
+                        image: uploadedImageBase64,
+                        customPrompt: customPrompt.trim(),
+                        options: {
+                            sceneStyle: 'custom',
+                            imageQuality: document.getElementById('imageQuality').value,
+                            generationSpeed: document.getElementById('generationSpeed').value
+                        }
                     })
                 });
+
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
 
                 const data = await response.json();
 
                 if (data.success) {
-                    showStatus(`✅ ${data.results.length} mises en scène générées !`, 'success');
-                    displayResults(data.results);
+                    updateProgressBar(100, '✅ Style personnalisé généré !');
+                    setTimeout(() => {
+                        showStatus('✅ Style personnalisé généré !', 'success');
+                        displayResults(data.results);
+                        hideProgressBar();
+                    }, 500);
                 } else {
-                    showStatus(`❌ Erreur: ${data.message}`, 'error');
+                    throw new Error(data.message || 'Erreur inconnue');
+                }
+            } catch (error) {
+                console.error('Erreur lors de la génération personnalisée:', error);
+                hideProgressBar();
+                showStatus(`❌ Erreur: ${error.message}`, 'error');
+            } finally {
+                generateCustomBtn.disabled = false;
+                generateScenesBtn.disabled = false;
+            }
+        }
+
+        async function generateProductScenes() {
+            if (!uploadedImageBase64) {
+                showStatus('❌ Veuillez d\'abord uploader une image', 'error');
+                return;
+            }
+
+            // Récupérer les options avancées
+            const sceneStyle = document.getElementById('sceneStyle').value;
+            const imageQuality = document.getElementById('imageQuality').value;
+            const generationSpeed = document.getElementById('generationSpeed').value;
+
+            showStatus('🎬 Génération de 6 mises en scène en cours...', 'loading');
+            generateScenesBtn.disabled = true;
+            generateCustomBtn.disabled = true;
+            
+            // Afficher la barre de progression
+            showProgressBar();
+
+            try {
+                const response = await fetch('/api/generate-product-scenes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: uploadedImageBase64,
+                        options: {
+                            sceneStyle: sceneStyle,
+                            imageQuality: imageQuality,
+                            generationSpeed: generationSpeed
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    updateProgressBar(100, '✅ Génération terminée !');
+                    setTimeout(() => {
+                        showStatus(`✅ ${data.results.length} mises en scène générées !`, 'success');
+                        displayResults(data.results);
+                        hideProgressBar();
+                    }, 500);
+                } else {
+                    throw new Error(data.message || 'Erreur inconnue');
                 }
             } catch (error) {
                 console.error('Erreur lors de la génération:', error);
-                showStatus('❌ Erreur lors de la génération des mises en scène', 'error');
+                hideProgressBar();
+                
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    showStatus('❌ Erreur de connexion. Vérifiez votre connexion internet.', 'error');
+                } else if (error.message.includes('HTTP')) {
+                    showStatus(`❌ Erreur serveur: ${error.message}`, 'error');
+                } else {
+                    showStatus(`❌ Erreur lors de la génération: ${error.message}`, 'error');
+                }
             } finally {
                 generateScenesBtn.disabled = false;
+                generateCustomBtn.disabled = false;
             }
+        }
+
+        // Fonctions pour la barre de progression
+        function showProgressBar() {
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressText.textContent = 'Initialisation...';
+        }
+
+        function updateProgressBar(percentage, text) {
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            
+            progressBar.style.width = `${percentage}%`;
+            progressText.textContent = text;
+        }
+
+        function hideProgressBar() {
+            const progressContainer = document.getElementById('progressContainer');
+            setTimeout(() => {
+                progressContainer.style.display = 'none';
+            }, 1000);
         }
 
         // Fonctions pour gérer le modal
