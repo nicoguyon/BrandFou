@@ -252,16 +252,10 @@ async function generateProductScene(baseImage, prompt, index, options = {}) {
       if (baseImage && baseImage.startsWith('data:image/')) {
         console.log('🖼️ Traitement de l\'image pour image-to-image...');
         
-        // Générer un ID unique pour l'image
-        const imageId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        imageCache.set(imageId, baseImage);
-        
-        // Créer l'URL publique
-        const baseUrl = 'https://brandfou-image-generator.netlify.app';
-        const imageUrl = `${baseUrl}/api/serve-image/${imageId}`;
-        
-        payload.image = imageUrl;
-        console.log('✅ Image-to-image activé avec URL publique:', imageUrl);
+        // Utiliser directement l'image base64 avec l'API Seedream
+        // L'API Seedream accepte les images base64 directement
+        payload.image = baseImage;
+        console.log('✅ Image-to-image activé avec image base64 directe');
       } else {
         console.log('📝 Génération avec prompts détaillés uniquement');
       }
@@ -496,35 +490,12 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // Route pour servir les images (simplifiée)
     if (path.startsWith('/api/serve-image/') && httpMethod === 'GET') {
-      const imageId = path.split('/api/serve-image/')[1];
-      const imageBase64 = imageCache.get(imageId);
-      
-      if (!imageBase64) {
-        return {
-          statusCode: 404,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'Image non trouvée' })
-        };
-      }
-      
-      // Déterminer le type MIME
-      const mimeMatch = imageBase64.match(/^data:([^;]+);/);
-      const contentType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-      
-      // Convertir base64 en buffer
-      const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
-      const buffer = Buffer.from(base64Data, 'base64');
-      
       return {
-        statusCode: 200,
-        headers: {
-          'Content-Type': contentType,
-          'Cache-Control': 'public, max-age=3600',
-          'Access-Control-Allow-Origin': '*'
-        },
-        body: buffer.toString('base64'),
-        isBase64Encoded: true
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Route d\'image non disponible' })
       };
     }
 
