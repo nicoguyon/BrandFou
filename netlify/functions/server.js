@@ -50,7 +50,8 @@ testApiConnection();
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, '../../public')));
 
 // Fonction pour générer une image avec Seedream
@@ -245,15 +246,18 @@ app.post('/api/generate-multiple', async (req, res) => {
 });
 
 // Fonction pour générer des prompts de mise en scène automatiquement
-function generateProductScenePrompts(style = 'professional') {
+function generateProductScenePrompts(style = 'professional', productDescription = '') {
+  // Base des prompts avec description du produit
+  const productContext = productDescription ? `The uploaded product (${productDescription})` : "The uploaded product";
+  
   const styles = {
     professional: [
-      "Product lifestyle shot - Premium product in elegant home setting, natural lighting, minimalist interior design, luxury atmosphere, professional photography, clean background, focus on product details",
-      "Product hero shot - Dramatic product photography, studio lighting, clean white background, professional commercial style, product centered, high-end presentation, commercial grade",
-      "Product in context - Product being used in real-life situation, lifestyle photography, authentic moment, natural environment, storytelling approach, relatable scene",
-      "Product detail close-up - Macro photography style, extreme close-up of product details, texture and material focus, professional studio setup, commercial photography quality",
-      "Product seasonal theme - Product styled with seasonal elements, festive atmosphere, creative composition, lifestyle photography, seasonal color palette, engaging visual story",
-      "Product premium presentation - Luxury product showcase, high-end environment, premium materials, sophisticated lighting, editorial photography style, aspirational lifestyle"
+      `Professional lifestyle shot - ${productContext} placed in an elegant home setting with natural lighting, minimalist interior design, luxury atmosphere, professional photography, clean background, maintaining the original product appearance`,
+      `Hero product shot - ${productContext} with dramatic studio lighting, clean white background, professional commercial style, product centered and clearly visible, high-end presentation, commercial grade photography`,
+      `Product in use context - ${productContext} being used in a real-life situation, lifestyle photography, authentic moment, natural environment, storytelling approach, relatable scene while keeping the product recognizable`,
+      `Detail close-up - ${productContext} with macro photography style, extreme close-up of product details, texture and material focus, professional studio setup, commercial photography quality, preserving product identity`,
+      `Seasonal theme - ${productContext} styled with seasonal elements, festive atmosphere, creative composition, lifestyle photography, seasonal color palette, engaging visual story, product remains the focal point`,
+      `Premium presentation - ${productContext} in luxury showcase, high-end environment, premium materials, sophisticated lighting, editorial photography style, aspirational lifestyle, maintaining product integrity`
     ],
     lifestyle: [
       "Lifestyle product photography - Product in natural environment, authentic lifestyle setting, warm lighting, relatable scene, casual atmosphere, everyday use context",
@@ -308,7 +312,8 @@ app.post('/api/generate-product-scenes', async (req, res) => {
     } else {
       // Utiliser les prompts prédéfinis selon le style
       const style = options.sceneStyle || 'professional';
-      scenePrompts = generateProductScenePrompts(style);
+      const productDescription = options.productDescription || '';
+      scenePrompts = generateProductScenePrompts(style, productDescription);
       console.log(`🎬 Style "${style}" - ${scenePrompts.length} mises en scène à générer`);
     }
     
@@ -338,6 +343,34 @@ app.post('/api/generate-product-scenes', async (req, res) => {
     });
   }
 });
+
+// Fonction pour uploader une image temporairement vers le serveur local
+async function uploadImageTemporarily(base64Image) {
+  try {
+    console.log('📤 Upload de l\'image vers le serveur local...');
+    
+    const response = await axios.post('http://localhost:3000/api/upload-image', {
+      image: base64Image
+    }, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 10000
+    });
+    
+    if (response.data.success) {
+      const imageUrl = response.data.imageUrl;
+      console.log('✅ Image uploadée avec succès:', imageUrl);
+      return imageUrl;
+    } else {
+      console.log('❌ Erreur upload local:', response.data.error);
+      return null;
+    }
+  } catch (error) {
+    console.log('❌ Erreur lors de l\'upload local:', error.message);
+    return null;
+  }
+}
 
 // Fonction pour générer une mise en scène de produit avec image-to-image
 async function generateProductScene(baseImage, prompt, index, options = {}) {
@@ -381,17 +414,35 @@ async function generateProductScene(baseImage, prompt, index, options = {}) {
       
       console.log('Paramètres de génération:', { size, sequentialGeneration });
       
+      // Préparer le payload pour l'image-to-image
+      const payload = {
+        model: config.seedream.model,
+        prompt: prompt,
+        sequential_image_generation: sequentialGeneration,
+        response_format: "url",
+        size: size,
+        stream: false,
+        watermark: false
+      };
+
+      // Essayer d'utiliser l'image-to-image si une image est fournie
+      if (baseImage && baseImage.startsWith('data:image/')) {
+        console.log('🖼️ Tentative d\'upload de l\'image pour image-to-image...');
+        const imageUrl = await uploadImageTemporarily(baseImage);
+        
+        if (imageUrl) {
+          payload.image = imageUrl;
+          console.log('✅ Image-to-image activé avec:', imageUrl);
+        } else {
+          console.log('⚠️ Upload échoué, utilisation des prompts détaillés uniquement');
+        }
+      } else {
+        console.log('📝 Génération avec prompts détaillés incluant la description du produit');
+      }
+
       const response = await axios.post(
         `${config.seedream.baseUrl}/images/generations`,
-        {
-          model: config.seedream.model,
-          prompt: prompt,
-          image: baseImage, // Image de base en base64
-          sequential_image_generation: sequentialGeneration,
-          response_format: "url",
-          size: size,
-          watermark: false
-        },
+        payload,
         {
           headers: {
             'Content-Type': 'application/json',

@@ -265,6 +265,11 @@
             cursor: pointer;
             transition: all 0.3s ease;
             background: white;
+            position: relative;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .upload-area:hover {
@@ -604,6 +609,14 @@
             <div class="upload-section">
                 <h3>📸 Upload de Produit</h3>
                 <p>Uploadez une photo de votre produit et générez automatiquement 6 mises en scène différentes !</p>
+        <div style="background: #e8f5e8; border: 1px solid #4caf50; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+            <strong>🎨 Génération de Mises en Scène avec IA :</strong><br>
+            • Uploadez votre image de produit<br>
+            • L'IA utilise l'image-to-image pour conserver votre produit exact<br>
+            • Votre produit est placé dans 6 situations inventées !<br>
+            • <em>✨ Image-to-image + prompts créatifs pour des mises en scène parfaites</em><br>
+            • <small>💡 Votre produit reste identique dans chaque situation</small>
+        </div>
                 
                 <div class="upload-area" id="uploadArea">
                     <div class="upload-content">
@@ -633,7 +646,10 @@
                                 <span id="imageDate">-</span>
                             </div>
                         </div>
-                        <button id="removeImage" class="btn btn-secondary">Supprimer</button>
+                        
+                        <!-- Description du produit -->
+                        
+                        <button id="removeImage" class="btn btn-secondary" style="margin-top: 15px;">Supprimer</button>
                     </div>
                 </div>
 
@@ -929,7 +945,16 @@
                     
                     // Créer l'image avec gestion d'erreur
                     const img = document.createElement('img');
-                    img.src = result.imageUrl;
+                    
+                    // Utiliser l'image base64 si disponible, sinon l'URL
+                    if (result.imageBase64) {
+                        img.src = result.imageBase64;
+                        console.log(`✅ Utilisation de l'image base64 pour ${result.index + 1}`);
+                    } else {
+                        img.src = result.imageUrl;
+                        img.crossOrigin = 'anonymous'; // Permettre le chargement cross-origin
+                    }
+                    
                     img.alt = `Image générée ${result.index + 1}`;
                     img.loading = 'lazy';
                     img.style.width = '100%';
@@ -939,8 +964,9 @@
                     
                     // Gestion des erreurs de chargement d'image
                     img.onerror = function() {
-                        console.log(`❌ Erreur de chargement pour l'image ${result.index + 1}`);
-                        this.src = `https://via.placeholder.com/300x200/FF6B6B/FFFFFF?text=Erreur+${result.index + 1}`;
+                        console.log(`❌ Erreur de chargement pour l'image ${result.index + 1}:`, result.imageUrl);
+                        // Utiliser une image de placeholder
+                        this.src = `https://via.placeholder.com/300x200/FF6B6B/FFFFFF?text=Image+${result.index + 1}`;
                     };
                     
                     img.onload = function() {
@@ -1007,7 +1033,7 @@
         // Événements pour les options avancées
         const toggleOptionsBtn = document.getElementById('toggleOptions');
         const advancedOptions = document.getElementById('advancedOptions');
-        const generateCustomBtn = document.getElementById('generateCustomBtn');
+        const generateCustomStyleBtn = document.getElementById('generateCustomBtn');
         
         toggleOptionsBtn.addEventListener('click', () => {
             const isHidden = !advancedOptions.classList.contains('show');
@@ -1020,26 +1046,50 @@
             }
         });
         
-        generateCustomBtn.addEventListener('click', generateCustomStyle);
+        generateCustomStyleBtn.addEventListener('click', generateCustomStyle);
 
         // Drag & Drop pour l'upload
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
+        if (uploadArea) {
+            console.log('🎯 Configuration du drag & drop...');
+            
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('📁 Drag over detected');
+                uploadArea.classList.add('dragover');
+            });
 
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
+            uploadArea.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('📥 Drag enter detected');
+                uploadArea.classList.add('dragover');
+            });
 
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFileSelect(files[0]);
-            }
-        });
+            uploadArea.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('📤 Drag leave detected');
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('📦 Drop detected');
+                uploadArea.classList.remove('dragover');
+                
+                const files = e.dataTransfer.files;
+                console.log('📁 Fichiers détectés:', files.length);
+                
+                if (files.length > 0) {
+                    console.log('📄 Traitement du fichier:', files[0].name);
+                    handleFileSelect(files[0]);
+                }
+            });
+        } else {
+            console.error('❌ uploadArea non trouvé');
+        }
 
         // Événements pour le modal
         closeBtn.addEventListener('click', closeModal);
@@ -1115,7 +1165,7 @@
                 uploadArea.style.display = 'none';
                 uploadPreview.style.display = 'flex';
                 generateScenesBtn.style.display = 'inline-block';
-                generateCustomBtn.style.display = 'inline-block';
+                generateCustomStyleBtn.style.display = 'inline-block';
                 
                 showStatus('✅ Image chargée avec succès !', 'success');
             };
@@ -1145,7 +1195,7 @@
             uploadArea.style.display = 'block';
             uploadPreview.style.display = 'none';
             generateScenesBtn.style.display = 'none';
-            generateCustomBtn.style.display = 'none';
+            generateCustomStyleBtn.style.display = 'none';
             productImage.value = '';
             
             // Réinitialiser les informations d'image
@@ -1164,14 +1214,14 @@
                 return;
             }
 
-            const customPrompt = prompt('Entrez votre prompt personnalisé pour la mise en scène :');
+            const customPrompt = prompt(`Entrez votre prompt personnalisé pour la mise en scène :`);
             if (!customPrompt || customPrompt.trim() === '') {
                 showStatus('❌ Prompt personnalisé requis', 'error');
                 return;
             }
 
             showStatus('🎨 Génération du style personnalisé...', 'loading');
-            generateCustomBtn.disabled = true;
+            generateCustomStyleBtn.disabled = true;
             generateScenesBtn.disabled = true;
             
             showProgressBar();
@@ -1188,7 +1238,7 @@
                         options: {
                             sceneStyle: 'custom',
                             imageQuality: document.getElementById('imageQuality').value,
-                            generationSpeed: document.getElementById('generationSpeed').value
+                            generationSpeed: document.getElementById('generationSpeed').value,
                         }
                     })
                 });
@@ -1214,7 +1264,7 @@
                 hideProgressBar();
                 showStatus(`❌ Erreur: ${error.message}`, 'error');
             } finally {
-                generateCustomBtn.disabled = false;
+                generateCustomStyleBtn.disabled = false;
                 generateScenesBtn.disabled = false;
             }
         }
@@ -1230,9 +1280,10 @@
             const imageQuality = document.getElementById('imageQuality').value;
             const generationSpeed = document.getElementById('generationSpeed').value;
 
+
             showStatus('🎬 Génération de 6 mises en scène en cours...', 'loading');
             generateScenesBtn.disabled = true;
-            generateCustomBtn.disabled = true;
+            generateCustomStyleBtn.disabled = true;
             
             // Afficher la barre de progression
             showProgressBar();
@@ -1248,7 +1299,7 @@
                         options: {
                             sceneStyle: sceneStyle,
                             imageQuality: imageQuality,
-                            generationSpeed: generationSpeed
+                            generationSpeed: generationSpeed,
                         }
                     })
                 });
@@ -1282,7 +1333,7 @@
                 }
             } finally {
                 generateScenesBtn.disabled = false;
-                generateCustomBtn.disabled = false;
+                generateCustomStyleBtn.disabled = false;
             }
         }
 
@@ -1343,6 +1394,16 @@
             
             displayResults([testResult]);
         }
+
+        // Debug des éléments DOM
+        console.log('🔍 Vérification des éléments DOM:');
+        console.log('generateSeriesBtn:', generateSeriesBtn);
+        console.log('generateCustomBtn:', generateCustomBtn);
+        console.log('generateMultipleBtn:', generateMultipleBtn);
+        console.log('showPromptsBtn:', showPromptsBtn);
+        console.log('uploadArea:', uploadArea);
+        console.log('generateScenesBtn:', generateScenesBtn);
+        console.log('generateCustomStyleBtn:', generateCustomStyleBtn);
 
         // Charger les prompts au démarrage
         loadPrompts();
