@@ -1,14 +1,10 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs-extra');
 const axios = require('axios');
-const { OpenAI } = require('openai');
 const config = require('../../config');
 
-const app = express();
+// Cache pour les images uploadées
+const imageCache = new Map();
 
-// Configuration OpenAI pour Seedream
+// Configuration pour l'API Seedream
 let isApiValid = false;
 
 // Test de l'API au démarrage
@@ -16,7 +12,6 @@ async function testApiConnection() {
   try {
     console.log('🔍 Test de connexion à l\'API Seedream...');
     
-    // Test direct avec l'API BytePlus
     const response = await axios.post(
       `${config.seedream.baseUrl}/images/generations`,
       {
@@ -47,12 +42,6 @@ async function testApiConnection() {
 
 // Initialiser la connexion API
 testApiConnection();
-
-// Middleware
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(express.static(path.join(__dirname, '../../public')));
 
 // Fonction pour générer une image avec Seedream
 async function generateImage(prompt, index) {
@@ -163,88 +152,6 @@ function parseMultiplePrompts(text) {
   return prompts;
 }
 
-// Routes API
-app.get('/api/status', (req, res) => {
-  res.json({
-    success: true,
-    apiValid: isApiValid,
-    mode: isApiValid ? 'production' : 'demo',
-    message: isApiValid ? 'API Seedream active' : 'Mode démonstration - Images de test'
-  });
-});
-
-app.get('/api/prompts', (req, res) => {
-  res.json({
-    success: true,
-    prompts: config.prompts
-  });
-});
-
-app.post('/api/generate-series', async (req, res) => {
-  try {
-    console.log('Démarrage de la génération de la série d\'images...');
-    const results = [];
-    
-    for (let i = 0; i < config.prompts.length; i++) {
-      const result = await generateImage(config.prompts[i], i);
-      results.push(result);
-    }
-    
-    res.json({
-      success: true,
-      message: `Génération terminée. ${results.length} images générées.`,
-      results: results
-    });
-    
-  } catch (error) {
-    console.error('Erreur lors de la génération de la série:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la génération',
-      error: error.message
-    });
-  }
-});
-
-app.post('/api/generate-multiple', async (req, res) => {
-  try {
-    const { prompts } = req.body;
-    
-    if (!prompts) {
-      return res.status(400).json({
-        success: false,
-        message: 'Aucun prompt fourni'
-      });
-    }
-    
-    console.log('📝 Traitement de plusieurs prompts...');
-    const parsedPrompts = parseMultiplePrompts(prompts);
-    console.log(`🎨 ${parsedPrompts.length} prompts détectés`);
-    
-    const results = [];
-    
-    for (let i = 0; i < parsedPrompts.length; i++) {
-      console.log(`Génération ${i + 1}/${parsedPrompts.length}: ${parsedPrompts[i].substring(0, 30)}...`);
-      const result = await generateImage(parsedPrompts[i], i);
-      results.push(result);
-    }
-    
-    res.json({
-      success: true,
-      message: `Génération terminée. ${results.length} images générées.`,
-      results: results
-    });
-    
-  } catch (error) {
-    console.error('Erreur lors de la génération multiple:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la génération',
-      error: error.message
-    });
-  }
-});
-
 // Fonction pour générer des prompts de mise en scène automatiquement
 function generateProductScenePrompts(style = 'professional', productDescription = '') {
   // Base des prompts avec description du produit
@@ -286,94 +193,6 @@ function generateProductScenePrompts(style = 'professional', productDescription 
   };
 
   return styles[style] || styles.professional;
-}
-
-// Route pour la génération de mises en scène de produit
-app.post('/api/generate-product-scenes', async (req, res) => {
-  try {
-    const { image, customPrompt, options = {} } = req.body;
-    
-    if (!image) {
-      return res.status(400).json({
-        success: false,
-        message: 'Aucune image fournie'
-      });
-    }
-    
-    console.log('📸 Génération de mises en scène de produit...');
-    console.log('Options reçues:', options);
-    
-    let scenePrompts;
-    
-    // Si un prompt personnalisé est fourni, l'utiliser
-    if (customPrompt) {
-      console.log('🎨 Utilisation du prompt personnalisé:', customPrompt);
-      scenePrompts = [customPrompt];
-    } else {
-      // Utiliser les prompts prédéfinis selon le style
-      const style = options.sceneStyle || 'professional';
-      const productDescription = options.productDescription || '';
-      scenePrompts = generateProductScenePrompts(style, productDescription);
-      console.log(`🎬 Style "${style}" - ${scenePrompts.length} mises en scène à générer`);
-    }
-    
-    const results = [];
-    
-    for (let i = 0; i < scenePrompts.length; i++) {
-      console.log(`Génération ${i + 1}/${scenePrompts.length}: ${scenePrompts[i].substring(0, 50)}...`);
-      
-      // Appliquer les options de qualité et vitesse
-      const result = await generateProductScene(image, scenePrompts[i], i, options);
-      results.push(result);
-    }
-    
-    res.json({
-      success: true,
-      message: `Génération terminée. ${results.length} mises en scène générées.`,
-      results: results,
-      options: options
-    });
-    
-  } catch (error) {
-    console.error('Erreur lors de la génération des mises en scène:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la génération des mises en scène',
-      error: error.message
-    });
-  }
-});
-
-// Fonction pour uploader une image temporairement vers le serveur
-async function uploadImageTemporarily(base64Image) {
-  try {
-    console.log('📤 Upload de l\'image vers le serveur...');
-    
-    // Utiliser l'URL publique Netlify au lieu de localhost
-    const baseUrl = process.env.NETLIFY_URL || 'https://brandfou-image-generator.netlify.app';
-    const uploadUrl = `${baseUrl}/api/upload-image`;
-    
-    const response = await axios.post(uploadUrl, {
-      image: base64Image
-    }, {
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      timeout: 10000
-    });
-    
-    if (response.data.success) {
-      const imageUrl = response.data.imageUrl;
-      console.log('✅ Image uploadée avec succès:', imageUrl);
-      return imageUrl;
-    } else {
-      console.log('❌ Erreur upload:', response.data.error);
-      return null;
-    }
-  } catch (error) {
-    console.log('❌ Erreur lors de l\'upload:', error.message);
-    return null;
-  }
 }
 
 // Fonction pour générer une mise en scène de produit avec image-to-image
@@ -429,19 +248,22 @@ async function generateProductScene(baseImage, prompt, index, options = {}) {
         watermark: false
       };
 
-      // Essayer d'utiliser l'image-to-image si une image est fournie
+      // Gérer l'image de base pour l'image-to-image
       if (baseImage && baseImage.startsWith('data:image/')) {
-        console.log('🖼️ Tentative d\'upload de l\'image pour image-to-image...');
-        const imageUrl = await uploadImageTemporarily(baseImage);
+        console.log('🖼️ Traitement de l\'image pour image-to-image...');
         
-        if (imageUrl) {
-          payload.image = imageUrl;
-          console.log('✅ Image-to-image activé avec:', imageUrl);
-        } else {
-          console.log('⚠️ Upload échoué, utilisation des prompts détaillés uniquement');
-        }
+        // Générer un ID unique pour l'image
+        const imageId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        imageCache.set(imageId, baseImage);
+        
+        // Créer l'URL publique
+        const baseUrl = 'https://brandfou-image-generator.netlify.app';
+        const imageUrl = `${baseUrl}/api/serve-image/${imageId}`;
+        
+        payload.image = imageUrl;
+        console.log('✅ Image-to-image activé avec URL publique:', imageUrl);
       } else {
-        console.log('📝 Génération avec prompts détaillés incluant la description du produit');
+        console.log('📝 Génération avec prompts détaillés uniquement');
       }
 
       const response = await axios.post(
@@ -460,9 +282,22 @@ async function generateProductScene(baseImage, prompt, index, options = {}) {
       const imageUrl = response.data.data[0]?.url || 
                       `https://via.placeholder.com/1920x1080/00FF00/FFFFFF?text=Scene+${index + 1}`;
       
+      // Convertir l'image en base64 pour l'affichage
+      let imageBase64 = null;
+      try {
+        console.log('🔄 Conversion de l\'image en base64...');
+        const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        const buffer = Buffer.from(imageResponse.data);
+        imageBase64 = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+        console.log('✅ Image convertie en base64');
+      } catch (error) {
+        console.log('⚠️ Impossible de convertir l\'image en base64:', error.message);
+      }
+      
       return {
         success: true,
         imageUrl: imageUrl,
+        imageBase64: imageBase64,
         prompt: prompt,
         index: index,
         demoMode: false,
@@ -475,6 +310,7 @@ async function generateProductScene(baseImage, prompt, index, options = {}) {
     }
   } catch (error) {
     console.error('❌ Erreur lors de la génération de la mise en scène:', error.message);
+    console.error('Détails de l\'erreur:', error.response?.data);
     
     const fallbackImage = config.demoImages[index] || `https://via.placeholder.com/1920x1080/FF6B6B/FFFFFF?text=Erreur+${index + 1}`;
     
@@ -487,78 +323,231 @@ async function generateProductScene(baseImage, prompt, index, options = {}) {
       title: `Mise en scène ${index + 1}`,
       description: prompt,
       error: error.message,
+      errorDetails: error.response?.data,
       message: 'Erreur lors de la génération - Image de démonstration'
     };
   }
 }
 
-// Route pour servir l'application
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../public/index.html'));
-});
+// Handler principal pour Netlify Functions
+exports.handler = async (event, context) => {
+  // Configuration des headers CORS
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Content-Type': 'application/json'
+  };
 
-// Cache pour les images uploadées
-const imageCache = new Map();
-
-// Route pour uploader et servir les images localement
-app.post('/api/upload-image', async (req, res) => {
-  try {
-    const { image } = req.body;
-    
-    if (!image || !image.startsWith('data:image/')) {
-      return res.status(400).json({ error: 'Image base64 manquante' });
-    }
-    
-    // Générer un ID unique pour l'image
-    const imageId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    
-    // Stocker l'image en base64 (dans une vraie app, vous utiliseriez un stockage persistant)
-    imageCache.set(imageId, image);
-    
-    // Retourner l'URL publique Netlify
-    const baseUrl = process.env.NETLIFY_URL || 'https://brandfou-image-generator.netlify.app';
-    const imageUrl = `${baseUrl}/api/serve-image/${imageId}`;
-    
-    console.log('✅ Image uploadée localement:', imageUrl);
-    res.json({ success: true, imageUrl });
-    
-  } catch (error) {
-    console.error('❌ Erreur upload local:', error.message);
-    res.status(500).json({ error: 'Erreur lors de l\'upload' });
+  // Gestion des requêtes OPTIONS (CORS preflight)
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers,
+      body: ''
+    };
   }
-});
 
-// Route pour servir les images uploadées localement
-app.get('/api/serve-image/:imageId', (req, res) => {
   try {
-    const { imageId } = req.params;
-    const imageBase64 = imageCache.get(imageId);
-    
-    if (!imageBase64) {
-      return res.status(404).json({ error: 'Image non trouvée' });
-    }
-    
-    // Déterminer le type MIME
-    const mimeMatch = imageBase64.match(/^data:([^;]+);/);
-    const contentType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-    
-    // Convertir base64 en buffer
-    const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
-    
-    res.set({
-      'Content-Type': contentType,
-      'Cache-Control': 'public, max-age=3600',
-      'Access-Control-Allow-Origin': '*'
-    });
-    
-    res.send(buffer);
-    
-  } catch (error) {
-    console.error('❌ Erreur serve image:', error.message);
-    res.status(500).json({ error: 'Erreur lors du chargement de l\'image' });
-  }
-});
+    const { path, httpMethod, body } = event;
+    const data = body ? JSON.parse(body) : {};
 
-// Export pour Netlify Functions
-exports.handler = app;
+    // Routes API
+    if (path === '/api/status') {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          apiValid: isApiValid,
+          mode: isApiValid ? 'production' : 'demo',
+          message: isApiValid ? 'API Seedream active' : 'Mode démonstration - Images de test'
+        })
+      };
+    }
+
+    if (path === '/api/prompts') {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          prompts: config.prompts
+        })
+      };
+    }
+
+    if (path === '/api/generate-series' && httpMethod === 'POST') {
+      console.log('Démarrage de la génération de la série d\'images...');
+      const results = [];
+      
+      for (let i = 0; i < config.prompts.length; i++) {
+        const result = await generateImage(config.prompts[i], i);
+        results.push(result);
+        
+        // Pause entre les générations
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          message: `Génération terminée. ${results.length} images générées.`,
+          results: results
+        })
+      };
+    }
+
+    if (path === '/api/generate-multiple' && httpMethod === 'POST') {
+      const { prompts } = data;
+      
+      if (!prompts) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({
+            success: false,
+            message: 'Aucun prompt fourni'
+          })
+        };
+      }
+      
+      console.log('📝 Traitement de plusieurs prompts...');
+      const parsedPrompts = parseMultiplePrompts(prompts);
+      console.log(`🎨 ${parsedPrompts.length} prompts détectés`);
+      
+      const results = [];
+      
+      for (let i = 0; i < parsedPrompts.length; i++) {
+        console.log(`Génération ${i + 1}/${parsedPrompts.length}: ${parsedPrompts[i].substring(0, 30)}...`);
+        const result = await generateImage(parsedPrompts[i], i);
+        results.push(result);
+        
+        // Pause entre les générations
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          message: `Génération terminée. ${results.length} images générées.`,
+          results: results
+        })
+      };
+    }
+
+    if (path === '/api/generate-product-scenes' && httpMethod === 'POST') {
+      const { image, customPrompt, options = {} } = data;
+      
+      if (!image) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({
+            success: false,
+            message: 'Aucune image fournie'
+          })
+        };
+      }
+      
+      console.log('📸 Génération de mises en scène de produit...');
+      console.log('Options reçues:', options);
+      
+      let scenePrompts;
+      
+      // Si un prompt personnalisé est fourni, l'utiliser
+      if (customPrompt) {
+        console.log('🎨 Utilisation du prompt personnalisé:', customPrompt);
+        scenePrompts = [customPrompt];
+      } else {
+        // Utiliser les prompts prédéfinis selon le style
+        const style = options.sceneStyle || 'professional';
+        const productDescription = options.productDescription || '';
+        scenePrompts = generateProductScenePrompts(style, productDescription);
+        console.log(`🎬 Style "${style}" - ${scenePrompts.length} mises en scène à générer`);
+      }
+      
+      const results = [];
+      
+      for (let i = 0; i < scenePrompts.length; i++) {
+        console.log(`Génération ${i + 1}/${scenePrompts.length}: ${scenePrompts[i].substring(0, 50)}...`);
+        
+        // Appliquer les options de qualité et vitesse
+        const result = await generateProductScene(image, scenePrompts[i], i, options);
+        results.push(result);
+        
+        // Pause entre les générations
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          message: `Génération terminée. ${results.length} mises en scène générées.`,
+          results: results,
+          options: options
+        })
+      };
+    }
+
+    if (path.startsWith('/api/serve-image/') && httpMethod === 'GET') {
+      const imageId = path.split('/api/serve-image/')[1];
+      const imageBase64 = imageCache.get(imageId);
+      
+      if (!imageBase64) {
+        return {
+          statusCode: 404,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'Image non trouvée' })
+        };
+      }
+      
+      // Déterminer le type MIME
+      const mimeMatch = imageBase64.match(/^data:([^;]+);/);
+      const contentType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      
+      // Convertir base64 en buffer
+      const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=3600',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: buffer.toString('base64'),
+        isBase64Encoded: true
+      };
+    }
+
+    // Route par défaut
+    return {
+      statusCode: 404,
+      headers,
+      body: JSON.stringify({
+        success: false,
+        message: 'Route non trouvée'
+      })
+    };
+
+  } catch (error) {
+    console.error('❌ Erreur dans le handler:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({
+        success: false,
+        message: 'Erreur serveur',
+        error: error.message
+      })
+    };
+  }
+};
