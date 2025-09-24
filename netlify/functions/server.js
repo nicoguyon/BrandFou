@@ -373,23 +373,17 @@ exports.handler = async (event, context) => {
 
     if (path === '/api/generate-series' && httpMethod === 'POST') {
       console.log('Démarrage de la génération de la série d\'images...');
-      const results = [];
       
-      for (let i = 0; i < config.prompts.length; i++) {
-        const result = await generateImage(config.prompts[i], i);
-        results.push(result);
-        
-        // Pause entre les générations
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
+      // Générer seulement la première image pour éviter le timeout
+      const result = await generateImage(config.prompts[0], 0);
       
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
           success: true,
-          message: `Génération terminée. ${results.length} images générées.`,
-          results: results
+          message: `Génération terminée. 1 image générée.`,
+          results: [result]
         })
       };
     }
@@ -412,24 +406,16 @@ exports.handler = async (event, context) => {
       const parsedPrompts = parseMultiplePrompts(prompts);
       console.log(`🎨 ${parsedPrompts.length} prompts détectés`);
       
-      const results = [];
-      
-      for (let i = 0; i < parsedPrompts.length; i++) {
-        console.log(`Génération ${i + 1}/${parsedPrompts.length}: ${parsedPrompts[i].substring(0, 30)}...`);
-        const result = await generateImage(parsedPrompts[i], i);
-        results.push(result);
-        
-        // Pause entre les générations
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
+      // Générer seulement le premier prompt pour éviter le timeout
+      const result = await generateImage(parsedPrompts[0], 0);
       
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
           success: true,
-          message: `Génération terminée. ${results.length} images générées.`,
-          results: results
+          message: `Génération terminée. 1 image générée.`,
+          results: [result]
         })
       };
     }
@@ -465,26 +451,17 @@ exports.handler = async (event, context) => {
         console.log(`🎬 Style "${style}" - ${scenePrompts.length} mises en scène à générer`);
       }
       
-      const results = [];
-      
-      for (let i = 0; i < scenePrompts.length; i++) {
-        console.log(`Génération ${i + 1}/${scenePrompts.length}: ${scenePrompts[i].substring(0, 50)}...`);
-        
-        // Appliquer les options de qualité et vitesse
-        const result = await generateProductScene(image, scenePrompts[i], i, options);
-        results.push(result);
-        
-        // Pause entre les générations
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
+      // Générer seulement la première mise en scène pour éviter le timeout
+      console.log(`Génération 1/1: ${scenePrompts[0].substring(0, 50)}...`);
+      const result = await generateProductScene(image, scenePrompts[0], 0, options);
       
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
           success: true,
-          message: `Génération terminée. ${results.length} mises en scène générées.`,
-          results: results,
+          message: `Génération terminée. 1 mise en scène générée.`,
+          results: [result],
           options: options
         })
       };
