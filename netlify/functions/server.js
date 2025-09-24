@@ -344,12 +344,16 @@ app.post('/api/generate-product-scenes', async (req, res) => {
   }
 });
 
-// Fonction pour uploader une image temporairement vers le serveur local
+// Fonction pour uploader une image temporairement vers le serveur
 async function uploadImageTemporarily(base64Image) {
   try {
-    console.log('📤 Upload de l\'image vers le serveur local...');
+    console.log('📤 Upload de l\'image vers le serveur...');
     
-    const response = await axios.post('http://localhost:3000/api/upload-image', {
+    // Utiliser l'URL publique Netlify au lieu de localhost
+    const baseUrl = process.env.NETLIFY_URL || 'https://brandfou-image-generator.netlify.app';
+    const uploadUrl = `${baseUrl}/api/upload-image`;
+    
+    const response = await axios.post(uploadUrl, {
       image: base64Image
     }, {
       headers: {
@@ -363,11 +367,11 @@ async function uploadImageTemporarily(base64Image) {
       console.log('✅ Image uploadée avec succès:', imageUrl);
       return imageUrl;
     } else {
-      console.log('❌ Erreur upload local:', response.data.error);
+      console.log('❌ Erreur upload:', response.data.error);
       return null;
     }
   } catch (error) {
-    console.log('❌ Erreur lors de l\'upload local:', error.message);
+    console.log('❌ Erreur lors de l\'upload:', error.message);
     return null;
   }
 }
@@ -491,6 +495,69 @@ async function generateProductScene(baseImage, prompt, index, options = {}) {
 // Route pour servir l'application
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../../public/index.html'));
+});
+
+// Cache pour les images uploadées
+const imageCache = new Map();
+
+// Route pour uploader et servir les images localement
+app.post('/api/upload-image', async (req, res) => {
+  try {
+    const { image } = req.body;
+    
+    if (!image || !image.startsWith('data:image/')) {
+      return res.status(400).json({ error: 'Image base64 manquante' });
+    }
+    
+    // Générer un ID unique pour l'image
+    const imageId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
+    // Stocker l'image en base64 (dans une vraie app, vous utiliseriez un stockage persistant)
+    imageCache.set(imageId, image);
+    
+    // Retourner l'URL publique Netlify
+    const baseUrl = process.env.NETLIFY_URL || 'https://brandfou-image-generator.netlify.app';
+    const imageUrl = `${baseUrl}/api/serve-image/${imageId}`;
+    
+    console.log('✅ Image uploadée localement:', imageUrl);
+    res.json({ success: true, imageUrl });
+    
+  } catch (error) {
+    console.error('❌ Erreur upload local:', error.message);
+    res.status(500).json({ error: 'Erreur lors de l\'upload' });
+  }
+});
+
+// Route pour servir les images uploadées localement
+app.get('/api/serve-image/:imageId', (req, res) => {
+  try {
+    const { imageId } = req.params;
+    const imageBase64 = imageCache.get(imageId);
+    
+    if (!imageBase64) {
+      return res.status(404).json({ error: 'Image non trouvée' });
+    }
+    
+    // Déterminer le type MIME
+    const mimeMatch = imageBase64.match(/^data:([^;]+);/);
+    const contentType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    
+    // Convertir base64 en buffer
+    const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    res.set({
+      'Content-Type': contentType,
+      'Cache-Control': 'public, max-age=3600',
+      'Access-Control-Allow-Origin': '*'
+    });
+    
+    res.send(buffer);
+    
+  } catch (error) {
+    console.error('❌ Erreur serve image:', error.message);
+    res.status(500).json({ error: 'Erreur lors du chargement de l\'image' });
+  }
 });
 
 // Export pour Netlify Functions
